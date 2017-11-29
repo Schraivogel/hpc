@@ -6,9 +6,7 @@
 import os
 import numpy as np
 
-def shift_latt(latt):
-	
-	grid = latt
+def shift_f(grid):
 	
 	# center (0,0)
 	# stays constant
@@ -47,27 +45,29 @@ def shift_latt(latt):
 	
 	return grid
 
+def f_init(f, w):
+	nCh = len(w)
+	for i in range(nCh):
+		f[:, :, i] = w[i]
+	return f
 
+def get_rho(f):
+	rho = np.sum(f, axis=2, dtype=float)
+	pMax = np.ones(rho.shape) + 1e-6
+	np.testing.assert_array_less(rho, pMax)
+	assert sum(rho < 0, 2) == 0, 'Negative occupation / rho.'
+	return rho
 
-def sum_occ(mat):
-	occ = np.sum(mat, axis=2, dtype=float)
-	pMax = np.ones(occ.shape) + 1e-6
-	np.testing.assert_array_less(occ, pMax)
-	return occ
-
-def calc_j(c, mat):
-	j = mat.dot(c)
-	#j = np.einsum('rowscolsq, ai->rowscolsa', mat, c) -> ?
+def calc_j(c, f):
+	j = f.dot(c)
 	return j
 
 
 def calc_avg_vel(rho, j):
-	
 	u = j / rho.reshape(rho.shape[0], rho.shape[1], 1)
 	return u
 
 def calc_equilibrium(rho, u, c, w):
-	
 	nRows = rho.shape[0]
 	nCols = rho.shape[1]
 	nCh = len(w)
@@ -85,17 +85,18 @@ def calc_equilibrium(rho, u, c, w):
 
 				part1 = w[ch] * rhoTmp
 				part2 = (1 + 3 * uTmp.dot(cTmp) + \
-						 3/2 * uTmp.dot(cTmp)**2 - \
+						 9/2 * uTmp.dot(cTmp)**2 - \
 						 3/2 * uTmp.dot(uTmp.T))
 
 				f_eq[row, col, ch] =  part1 * part2
 	
 	return f_eq
 
-def checkDim(latt, c, w, j, rho, u):
-	nCh = latt.shape[2]
+def checkDim(f, c, w, j, rho, u):
+	
+	nCh = f.shape[2]
 	print('Number of channels:', nCh)
-	print('Shape of lattice:', latt.shape)
+	print('Shape of distribution lattice:', f.shape)
 	print('Shape of c:', c.shape, '. Vector of finite velocity directions')
 	print('Shape of w:', w.shape, '. Weight vector')
 	print('Shape of j:', j.shape, '= lattice.dot(c)', '. Weighted c  per node')
