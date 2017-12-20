@@ -55,7 +55,7 @@ def get_rho(f):
 	rho = np.sum(f, axis=2, dtype=float)
 	pMax = np.ones(rho.shape) + 1e-6
 	np.testing.assert_array_less(rho, pMax)
-	assert sum(rho < 0, 2) == 0, 'Negative occupation / rho.'
+	assert (rho.flatten() < 0).any() == False, 'Negative occupation / rho.'
 	return rho
 
 def calc_j(c, f):
@@ -104,3 +104,9 @@ def checkDim(f, c, w, j, rho, u):
 	print('Shape of u:', u.shape,  '= j/rho', '. Weighted vector of directions per node')
 	print('\n')
 
+def set_rho(epsilon, rho0, rows, cols):
+	# set rho0 offset
+	rho = np.full((rows,cols), rho0, dtype = float)
+	x = (2 * np.pi * np.arange(cols)) / (cols)
+	rho += epsilon * np.sin(x).reshape(1, cols)
+	return rho
