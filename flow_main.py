@@ -9,16 +9,19 @@ warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 ######################## Initialization ############################
 ####################################################################
 
+# lattice dimensions
 nRows = 10
 nCols = 10
 nCh = 9
 
+# number of timesteps
 timesteps = 300
+
 # velocity vector for matrix indices starting top left
 c = np.array([[0, 0], [0, 1], [-1, 0], [0, -1], [1, 0], [-1, 1], [-1, -1], [1, -1], [1, 1]])
 # lattice
 f = np.zeros((nRows, nCols, nCh), dtype=float)
-# weights for initial distribution
+# weights for initial lattice distribution
 w = np.array([4 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 9, 1 / 36, 1 / 36, 1 / 36, 1 / 36])
 
 # initial lattice distribution f
@@ -28,7 +31,7 @@ f = flow_func.f_init(f, w)
 omega = 1
 assert 0 < omega < 2.0, 'Limits of attenuation factor exceeded'
 
-# initialize shear wave decay
+# initialize shear wave decay factor
 epsilon = 0.01
 assert epsilon <= 0.1, 'Limits of shear wave decay exceeded'
 
@@ -36,24 +39,24 @@ assert epsilon <= 0.1, 'Limits of shear wave decay exceeded'
 ##################### Start with initial rho #######################
 ####################################################################
 
-# set distribution offset
+# set density distribution offset
 rhoOffset = 0.8
 assert 0 < rhoOffset < 1.0, 'Limits of rhoT0 exceeded'
-# initial distribution at t = 0
+# initial density distribution at t = 0
 rhoTZero = flow_func.init_rho(epsilon, rhoOffset, nRows, nCols)
 u = np.zeros((nRows, nCols, 2))
 
 # Calculate lattice equilibrium according to given rho -> equal to f_eq
 f = flow_func.calc_equilibrium(rhoTZero, u, c, w)
 
-# sanity check if calculation of rho is equal to predefined rho
+# sanity check if calculated rho from the lattice is equal to predefined rho at t = 0
 assert np.isclose(rhoTZero, flow_func.get_rho(f), rtol=1e-15, atol=1e-20, equal_nan=False).all(), 'Rho init failed'
 
 ####################################################################
 ######################### Scattering ###############################
 ####################################################################
 
-rho = rhoTZero.copy()
+rhoScatter = rhoTZero.copy()
 row = 0
 
 # Plotting
@@ -63,13 +66,13 @@ plt.xlabel('Rho column #')
 plt.ylabel('a.U.')
 ax = plt.subplot(111)
 
-print(rho[row, :])
+print(rhoScatter[row, :])
 
 # time loop
 for t in range(timesteps):
 
     if t % 20 == 0:
-        ax.plot(rho[row, :], label='t = %s' %t)
+        ax.plot(rhoScatter[row, :], label='t = %s' % t)
         plt.draw()
         plt.pause(1e-4)
     # shift distribution f
@@ -77,15 +80,15 @@ for t in range(timesteps):
     # get partial current density j
     j = flow_func.calc_j(c, f)
     # get current density rho
-    rho = flow_func.get_rho(f)
+    rhoScatter = flow_func.get_rho(f)
     # get average velocity
-    u = flow_func.calc_avg_vel(rho, j)
+    u = flow_func.calc_avg_vel(rhoScatter, j)
     # get local equilibrium distributions
-    feQ = flow_func.calc_equilibrium(rho, u, c, w)
+    feQ = flow_func.calc_equilibrium(rhoScatter, u, c, w)
     # update distribution
     f += omega * (feQ - f)
 
-print('After %f timesteps: %s' % (timesteps, rho[0, :]))
+print('After %f timesteps: %s' % (timesteps, rhoScatter[0, :]))
 
 # Plotting
 # Shrink current axis by 20%
