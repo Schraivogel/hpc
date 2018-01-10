@@ -55,7 +55,9 @@ def get_rho(f):
     try:
         np.testing.assert_array_less(rho, pMax)
     except AssertionError:
-        warnings.warn("Rho bigger than one")
+	with warnings.catch_warnings():
+	    warnings.simplefilter("once")
+	    warnings.warn("Rho bigger than one")
     assert (rho.flatten() < 0).any() == False, 'Negative occupation / rho.'
     return rho
 
