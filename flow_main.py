@@ -91,9 +91,7 @@ def calc_equilibrium(rho, u, c, w):  # TODO: Use Einsum
 				cTmp = c[ch].reshape((-1, 1))
 
 				part1 = w[ch] * rhoTmp
-				part2 = (1 + 3 * uTmp.dot(cTmp) +
-						 9 / 2 * uTmp.dot(cTmp) ** 2 -
-						 3 / 2 * uTmp.dot(uTmp.T))
+				part2 = (1 + 3 * uTmp.dot(cTmp) + 9/2 * uTmp.dot(cTmp) ** 2 - 3/2 * uTmp.dot(uTmp.T))
 
 				fEq[row, col, ch] = part1 * part2
 	print(rho)
