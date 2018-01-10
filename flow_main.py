@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     # Calculate lattice equilibrium according to given rho -> equal to f_eq
     f = flow_func.calc_equilibrium(rhoTZero, uTZero, c, w)
-
+	print(rhoTZero)
     # sanity check if calculated rho from the lattice is equal to predefined rho at t = 0
     assert np.isclose(rhoTZero, flow_func.get_rho(f), rtol=1e-15, atol=1e-20, equal_nan=False).all(), 'Rho init failed'
 
