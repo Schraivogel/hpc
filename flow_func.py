@@ -1,7 +1,7 @@
 # coding: utf-8
 
 import numpy as np
-
+import warnings
 
 def shift_f(grid):
     # center (0,0)
@@ -52,7 +52,10 @@ def f_init(f, w):
 def get_rho(f):
     rho = np.sum(f, axis=2, dtype=float)
     pMax = np.ones(rho.shape) + 1e-6
-    np.testing.assert_array_less(rho, pMax)
+    try:
+        np.testing.assert_array_less(rho, pMax)
+    except AssertionError:
+        warnings.warn("Rho bigger than one")
     assert (rho.flatten() < 0).any() == False, 'Negative occupation / rho.'
     return rho
 
@@ -67,7 +70,7 @@ def calc_avg_vel(rho, j):
     return u
 
 
-def calc_equilibrium(rho, u, c, w):
+def calc_equilibrium(rho, u, c, w):  # TODO: Use Einsum
     nRows = rho.shape[0]
     nCols = rho.shape[1]
     nCh = len(w)
@@ -104,13 +107,19 @@ def check_dim(f, c, w, j, rho, u):
     print('\n')
 
 
-def init_rho(epsilon, rhoOffset, rows, cols):
+def init_rho(epsilon, rhoOffset, rows, cols):  # TODO: make dim variable. current is x
     # set rho offset
     rho = np.full((rows, cols), rhoOffset, dtype=float)
-    x = (2 * np.pi * np.arange(cols)) / (cols)
+    x = (2 * np.pi * np.arange(cols)) / (cols-1)  # why cols-1 ?
     rho += epsilon * np.sin(x).reshape(1, cols)
     return rho
 
 
-def init_u():
-    return
+def init_u(epsilon, rows, cols):  # TODO: make dim variable. current is u_x with y pos
+    # set offset plus a sinusoidal variation of the velocities u_x with the position y
+    u = np.zeros((rows, cols, 2))
+    # y vector with one sinusodial period
+    y = (2 * np.pi * np.arange(rows)) / (rows)
+    # only set velocities u_x
+    u[:,:,0] = epsilon * np.sin(y).reshape(rows, 1)
+    return u
