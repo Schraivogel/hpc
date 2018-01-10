@@ -79,21 +79,15 @@ def calc_equilibrium(rho, u, c, w):  # TODO: Use Einsum
 	nRows = rho.shape[0]
 	nCols = rho.shape[1]
 	nCh = len(w)
-	
+
 	fEq = np.zeros((nRows, nCols, nCh))
-	for row in range(nRows):
-		for col in range(nCols):
-			for ch in range(nCh):
-				node = (row, col)
 
-				rhoTmp = rho[node]
-				uTmp = u[node].reshape((-1, 1)).T
-				cTmp = c[ch].reshape((-1, 1))
+	cu = np.einsum('ab, cdb -> cda', c, u)
+	cu2 = cu**2
+	u2 = np.einsum('abc, abc -> ab', u, u)
 
-				part1 = w[ch] * rhoTmp
-				part2 = (1 + 3 * uTmp.dot(cTmp) + 9/2 * uTmp.dot(cTmp) ** 2 - 3/2 * uTmp.dot(uTmp.T))
-
-				fEq[row, col, ch] = part1 * part2
+	for i in range(nCh):
+		fEq[:, :, i] = w[i] * rho * (1 + 3 * cu[:,:,i] + 9 / 2 * cu2[:,:,i] - 3 / 2 * u2)
 
 	return fEq
 
@@ -134,19 +128,19 @@ def init_u(epsilon, rows, cols):  # TODO: make dim variable. current is u_x with
 ####################################################################
 
 # lattice dimensions
-nRows = 20
-nCols = 20
+nRows = 40
+nCols = 40
 nCh = 9
 
 # number of timesteps
-timesteps = 200
+timesteps = 300
 
 # velocity vector for matrix indices starting top left
 c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
 # lattice
 f = np.zeros((nRows, nCols, nCh), dtype=float)
 # weights for initial lattice distribution
-w = np.array([4/9, 1/9, 1/9, 1/9, 1/9, 1/36, 1/36, 1/36, 1/36])
+w = np.array([4.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0])
 
 # initial lattice distribution f
 f = f_init(f, w)
@@ -158,7 +152,6 @@ assert 0 < omega < 1.7, 'Limits of attenuation factor exceeded'
 # initialize shear wave decay factor
 epsilon = 0.01
 assert epsilon < 0.1, 'Limits of shear wave decay exceeded'
-
 
 ####################################################################
 ##################### Start with initial rho #######################
@@ -227,12 +220,12 @@ uStore = np.zeros((1,0))
 for t in range(timesteps):
 
 	if t % plotDiscret == 0:
-		uStore = np.append(uStore, uScatter[nRows//4, colPlot, 0])
 		ax1.plot(rhoScatter[rowPlot, :], label='t = %s' % t)
 		print(rhoTZero)
 		ax2.plot(uScatter[:, colPlot, 0], label='t = %s' % t)
 		plt.draw()
 		plt.pause(1e-4)
+	uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
 	# shift distribution f
 	f = shift_f(f)
 	# get partial current density j
@@ -256,5 +249,12 @@ box = ax.get_position()
 ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 # Put a legend to the right of the current axis
 ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+
+Ly = nCols
+k = 2*np.pi / Ly
+nu = (-np.log(uStore[19]) + np.log(uStore[0])) / k**2
+print(nu)
+
+
 plt.show(ax) # figure blocks -> must be at the end of the code!
 
