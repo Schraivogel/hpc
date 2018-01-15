@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
-import warnings
 import matplotlib.cbook
+import warnings
 warnings.filterwarnings("ignore",category=matplotlib.cbook.mplDeprecation)
 
 def shift_f(grid):
@@ -128,12 +128,12 @@ def init_u(epsilon, rows, cols):  # TODO: make dim variable. current is u_x with
 ####################################################################
 
 # lattice dimensions
-nRows = 40
-nCols = 40
+nRows = 50
+nCols = 50
 nCh = 9
 
 # number of timesteps
-timesteps = 300
+timesteps = 400
 
 # velocity vector for matrix indices starting top left
 c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
@@ -194,37 +194,35 @@ rhoScatter = rhoTZero.copy()
 uScatter = uTZero.copy()
 rowPlot = 0
 colPlot = 0
-plotDiscret = 20
+
 # Plotting
+showPlot = False
+plotDiscret = 50
 # Two subplots, the axes array is 1-d
-fig = plt.figure()
-ax = fig.add_subplot(111)    # The big subplot
-ax1 = fig.add_subplot(311)
-ax2 = fig.add_subplot(312)
-ax3 = fig.add_subplot(313)
+fig1 = plt.figure(figsize=(10, 9))
+ax1 = fig1.add_subplot(111)    # The big subplot
+ax11 = fig1.add_subplot(211)
+ax12 = fig1.add_subplot(212)
 
 # Turn off axis lines and ticks of the big subplot
-ax.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
+ax1.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
 
-# Set common labels
-ax.set_xlabel('common xlabel')
-ax.set_ylabel('common ylabel')
+# Set labels
+# ax.set_xlabel('common xlabel')
+# ax.set_ylabel('common ylabel')
+ax11.set_title('Column of average velocity u')
+ax12.set_title('Average velocity u at pi/4')
 
-ax1.set_title('Row of density rho')
-ax2.set_title('Column of verage velocity u')
-ax3.set_title('Values of verage velocity u at pi/4')
 # storage of u vector points
-uStore = np.zeros((1,0))
+uStore = []
 
 # time loop
-for t in range(timesteps):
+for i in range(timesteps):
 
-	if t % plotDiscret == 0:
-		ax1.plot(rhoScatter[rowPlot, :], label='t = %s' % t)
-		print(rhoTZero)
-		ax2.plot(uScatter[:, colPlot, 0], label='t = %s' % t)
-		plt.draw()
-		plt.pause(1e-4)
+	if showPlot:
+		if i % plotDiscret == 0:
+			ax11.plot(uScatter[:, colPlot, 0], label='t = %s' % i)
+			plt.pause(1e-4)
 	uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
 	# shift distribution f
 	f = shift_f(f)
@@ -239,22 +237,60 @@ for t in range(timesteps):
 	# update distribution
 	f += omega * (feQ - f)
 
-print('Rho after %f timesteps: %s' % (timesteps, rhoScatter[0, :]))
+print('Rho after %d timesteps: %s \n' % (timesteps, rhoScatter[0, :]))
+t = np.arange(timesteps)
+lnU = np.log(uStore)
 
-ax3.plot(uStore)
-
-# Legend
-# Shrink current axis by 20%
-box = ax.get_position()
-ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-# Put a legend to the right of the current axis
-ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-
+# get slope of exp. fct via log formula
 Ly = nCols
 k = 2*np.pi / Ly
-nu = (-np.log(uStore[19]) + np.log(uStore[0])) / k**2
-print(nu)
+point = 20
+# compute viscosity(nu) the naive way
+nuNoise = (-np.log(uStore[point]) + np.log(uStore[0])) / (k**2 * point)
+nuNoiseAll = (-np.log(uStore[t[1::]]) + np.log(uStore[0])) / (k**2 * t[1::])
+print('Naive computation of nu = %.3f, mean(nu) = %.3f \n' % (nuNoise, np.mean(nuNoiseAll)))
+eFctNaive = uStore[0] * np.exp(-nuNoise * k**2 * t)
 
+# analytical solution of exponential fit
+t = np.arange(timesteps).reshape((-1, 1))
+phi = np.concatenate((t, np.ones((len(t), 1))), axis=1)
+coeffLn = np.linalg.inv(phi.T.dot(phi)).dot(phi.T).dot(lnU)
 
-plt.show(ax) # figure blocks -> must be at the end of the code!
+# line equation
+print('Coefficients for linear log(u) fit = %s \n' % coeffLn)
+line = coeffLn[0]*t + coeffLn[1]
+
+# get coefficients for exponential equation
+A = np.exp(coeffLn[1])
+lam = coeffLn[0]
+print('A = %.3f, lambda = %.3f for exponential fit \n' % (A, lam))
+eFctFit = A * np.exp(lam*t)
+
+# compute viscosity(nu) the exact way
+nuExact = (-np.log(eFctFit[point]) + np.log(eFctFit[0])) / (k**2 * point)
+nuExactAll = (-np.log(eFctFit[t[1::]]) + np.log(eFctFit[0])).reshape((-1,1)) / (k**2 * t[1::])
+print('Exact computation of nu = %.3f, mean(nu) = %.3f \n' % (nuExact, np.mean(nuExactAll)))
+
+if showPlot: # figure blocks -> must be at the end of the code!
+	# plot log of u values
+	ax12.plot(lnU, label='log(u)')
+	# plot linear fit
+	ax12.plot(line, 'r--', label='fit of log(u)')
+	# plot exp fit
+	#ax2.plot(eFct, 'g--', label='fit of $e^\lambda*t$')
+	# Legend
+	# Shrink current axis by 20%
+	box = ax1.get_position()
+	ax1.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+	# Put a legend to the right of the current axis
+	ax11.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+	ax12.legend(loc='best')
+	# plot u & exponential fit
+	fig2, ax2 = plt.subplots(1,1)
+	ax2.plot(t, uStore, label='u')
+	ax2.plot(t, eFctFit, 'g--', label='$y = A*e^{\lambda*x}$')
+	ax2.plot(t, eFctNaive, 'k--', label='$u_0*e^{-\\nu*k^2*t}$', linewidth=0.6)
+	ax2.legend(loc='best')
+
+	plt.show() # important to be at the end
 
