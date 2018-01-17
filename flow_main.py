@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib
-import time
+import sys
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -74,16 +74,19 @@ def shift_f(grid, bounceMask, applyBounce=False, slidingLid=False):
 
     return grid
 
-def slidingLid(grid, rho, u):
+def slidingLid(grid, rho):
     # according to slide 9 in HPC171129Ueb.pdf
-    cS = 1
-    rhoWall = rho[0, :]
-    ch = 7
+    rhoWall = rho[-1, :].reshape((-1, 1))
+    uLid = np.full((grid.shape[0], 1), 0.1)
     # substract lid velocity
-    grid[0, :, ch] -= 2 * w[ch] * rhoWall * c[ch, 0] * u[0, :, 0] / cS**2
-    ch = 8
+    ch = 7
+    #grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
+    grid[0, :, ch] -= (6 * w[ch] * rhoWall * uLid).flatten()
     # add lid velocity
-    grid[0, :, ch] += 2 * w[ch] * rhoWall * c[ch, 0] * u[0, :, 0] / cS ** 2
+    ch = 8
+    # grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
+    grid[0, :, ch] += (6 * w[ch] * rhoWall * uLid).flatten()
+
     return grid
 
 def f_init(f, w):
@@ -169,8 +172,8 @@ if __name__ == '__main__':
     ####################################################################
 
     # lattice dimensions
-    nRows = 5
-    nCols = 5
+    nRows = 50
+    nCols = 50
     nCh = 9
 
     # bounce back boundary
@@ -189,7 +192,7 @@ if __name__ == '__main__':
     applyslidingLid = True
 
     # number of timesteps
-    timesteps = 500
+    timesteps = 10000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -202,12 +205,12 @@ if __name__ == '__main__':
     f = f_init(f, w)
 
     # attenuation factor
-    omega = 0.1
-    assert 0 < omega < 1.7, 'Limits of attenuation factor exceeded'
+    omega = 1.7
+    assert 0 < omega <= 1.7, 'Limits of attenuation factor exceeded'
 
     # initialize shear wave decay factor
     epsilon = 0.01
-    assert epsilon < 0.1, 'Limits of shear wave decay exceeded'
+    assert epsilon <= 0.1, 'Limits of shear wave decay exceeded'
 
     ####################################################################
     ##################### Start with initial rho #######################
@@ -258,7 +261,6 @@ if __name__ == '__main__':
     if startWithSlidingLid:
         # initialize velocity only for top lid in x direction
         uTZero = np.zeros((nRows, nCols, 2))
-        uTZero[0, :, 0] = 0.01
         assert (abs(uTZero) < 0.1).all(), 'Limits of u exceeded'
         # set rho
         rhoTZero = np.ones((nRows, nCols))
@@ -278,27 +280,28 @@ if __name__ == '__main__':
     # Plotting
     showPlot = True
     plotDiscret = 50
+
     # Two subplots, the axes array is 1-d
     fig1 = plt.figure(figsize=(10, 9))
     ax1 = fig1.add_subplot(111)  # The big subplot
     ax11 = fig1.add_subplot(211)
     ax12 = fig1.add_subplot(212)
-
     # Turn off axis lines and ticks of the big subplot
     ax1.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
-
     # Set labels
     # ax.set_xlabel('common xlabel')
     # ax.set_ylabel('common ylabel')
     ax11.set_title('Column of average velocity u')
     ax12.set_title('Average velocity u at pi/4')
 
+    fig2 = plt.figure(2)
+
     # storage of u vector points
     uStore = []
     # for streamplot
     x = np.arange(nRows)
     y = np.arange(nCols)
-    X, Y = np.meshgrid(x, y)
+    Y, X = np.meshgrid(x, y)
 
     # time loop
     for i in range(timesteps):
@@ -307,20 +310,23 @@ if __name__ == '__main__':
             if i % plotDiscret == 0:
                 if startWithInitVelocity:
                     ax11.plot(uScatter[:, colPlot, 0], label='t = %s' % i)
-
+                else:
+                    plt.close(fig1)
                 # plot velocity streamfield
-                fig2 = plt.figure(2)
-                plt.clf()
+                fig2.clf()
                 plt.quiver(X, Y, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
+                plt.ylim(len(Y), 0)
                 plt.pause(1e-6)
-                time.sleep(0.25)
+        if (i + 1) % 50 == 0:
+            print("\rTime {}/{}".format(i + 1, timesteps), end="")
+            sys.stdout.flush()
         uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
 
         # shift distribution f
         f = shift_f(f, bounceMask, applyBounce, slidingLid)
         # slide lid
         if applyslidingLid:
-            f = slidingLid(f, rhoScatter, uScatter)
+            f = slidingLid(f, rhoScatter)
         # get partial current density j
         j = calc_j(c, f)
         # get current density rho
@@ -332,7 +338,7 @@ if __name__ == '__main__':
         # update distribution
         f += omega * (feQ - f)
 
-    plt.show()
+    fig2.show()
 
     calcViscosity = False
 
