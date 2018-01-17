@@ -1,11 +1,11 @@
 import numpy as np
 import matplotlib
-import time
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.cbook
 import warnings
+import time
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
@@ -19,7 +19,7 @@ class Flowfield:
         self.c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
 
 
-def shift_f(grid, bounceMask, applyBounce=False, slidingLid=False):
+def shift_f(grid, bounceMask, applyBounce):
 
     if applyBounce:
         saveGrid = np.ma.masked_where(bounceMask != True, grid)
@@ -74,17 +74,6 @@ def shift_f(grid, bounceMask, applyBounce=False, slidingLid=False):
 
     return grid
 
-def slidingLid(grid, rho, u):
-    # according to slide 9 in HPC171129Ueb.pdf
-    cS = 1
-    rhoWall = rho[0, :]
-    ch = 7
-    # substract lid velocity
-    grid[0, :, ch] -= 2 * w[ch] * rhoWall * c[ch, 0] * u[0, :, 0] / cS**2
-    ch = 8
-    # add lid velocity
-    grid[0, :, ch] += 2 * w[ch] * rhoWall * c[ch, 0] * u[0, :, 0] / cS ** 2
-    return grid
 
 def f_init(f, w):
     nCh = len(w)
@@ -186,10 +175,9 @@ if __name__ == '__main__':
     bounceMask[-1, :, 8] = True
 
     applyBounce = True
-    applyslidingLid = True
 
     # number of timesteps
-    timesteps = 500
+    timesteps = 100
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -262,7 +250,6 @@ if __name__ == '__main__':
         assert (abs(uTZero) < 0.1).all(), 'Limits of u exceeded'
         # set rho
         rhoTZero = np.ones((nRows, nCols))
-
         # Calculate lattice equilibrium according to given rho -> equal to f_eq
         f = calc_equilibrium(rhoTZero, uTZero, c, w)
 
@@ -277,7 +264,7 @@ if __name__ == '__main__':
 
     # Plotting
     showPlot = True
-    plotDiscret = 50
+    plotDiscret = 1
     # Two subplots, the axes array is 1-d
     fig1 = plt.figure(figsize=(10, 9))
     ax1 = fig1.add_subplot(111)  # The big subplot
@@ -293,6 +280,9 @@ if __name__ == '__main__':
     ax11.set_title('Column of average velocity u')
     ax12.set_title('Average velocity u at pi/4')
 
+    fig2 = plt.figure(2)
+    plt.title('Average velocity u')
+
     # storage of u vector points
     uStore = []
     # for streamplot
@@ -307,26 +297,27 @@ if __name__ == '__main__':
             if i % plotDiscret == 0:
                 if startWithInitVelocity:
                     ax11.plot(uScatter[:, colPlot, 0], label='t = %s' % i)
-
+                else:
+                    plt.close(fig1)
                 # plot velocity streamfield
-                fig2 = plt.figure(2)
-                plt.clf()
+                fig2.clf()
                 plt.quiver(X, Y, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
                 plt.pause(1e-6)
                 time.sleep(0.25)
+
         uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
 
         # shift distribution f
-        f = shift_f(f, bounceMask, applyBounce, slidingLid)
-        # slide lid
-        if applyslidingLid:
-            f = slidingLid(f, rhoScatter, uScatter)
+        f = shift_f(f, bounceMask, applyBounce)
         # get partial current density j
         j = calc_j(c, f)
         # get current density rho
         rhoScatter = get_rho(f)
         # get average velocity
+        print('U before', uScatter[:, :, 0])
+        print('Rho after', rhoScatter)
         uScatter = calc_avg_vel(rhoScatter, j)
+        print('After', uScatter[:,:,0])
         # get local equilibrium distributions
         feQ = calc_equilibrium(rhoScatter, uScatter, c, w)
         # update distribution
