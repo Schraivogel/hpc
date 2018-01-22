@@ -118,15 +118,16 @@ def f_init(f, w):
     return f
 
 
-def get_rho(f):
+def get_rho(f, checkMax=False):
     rho = np.sum(f, axis=2)
-    pMax = np.ones(rho.shape) + 1e-6
-    try:
-        np.testing.assert_array_less(rho, pMax)
-    except AssertionError:
-        with warnings.catch_warnings():
-            warnings.simplefilter("once")
-            warnings.warn("Rho bigger than one")
+    if checkMax:
+        pMax = np.ones(rho.shape) + 1e-6
+        try:
+            np.testing.assert_array_less(rho, pMax)
+        except AssertionError:
+            with warnings.catch_warnings():
+                warnings.simplefilter("once")
+                warnings.warn("Rho bigger than one")
     assert (rho.flatten() < 0).any() == False, 'Negative occupation / rho.'
     return rho
 
@@ -194,8 +195,8 @@ if __name__ == '__main__':
     ####################################################################
 
     # lattice dimensions
-    nRows = 50
-    nCols = 50
+    nRows = 300
+    nCols = 300
     nCh = 9
 
     # bounce back boundary
@@ -222,7 +223,7 @@ if __name__ == '__main__':
     applySlidingLid = True
 
     # number of timesteps
-    timesteps = 10000
+    timesteps = 1000000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -308,7 +309,7 @@ if __name__ == '__main__':
     colPlot = 0
 
     # Plotting
-    showPlot = True
+    showPlot = False
     plotDiscret = 50
 
     # Two subplots, the axes array is 1-d
@@ -331,7 +332,7 @@ if __name__ == '__main__':
     # for streamplot
     x = np.arange(nRows)
     y = np.arange(nCols)
-    Y, X = np.meshgrid(x, y)
+    X, Y = np.meshgrid(x, y)
 
     # time loop
     for i in range(timesteps):
@@ -344,7 +345,8 @@ if __name__ == '__main__':
                     plt.close(fig1)
                 # plot velocity streamfield
                 fig2.clf()
-                plt.quiver(X, Y, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
+                #plt.quiver(X, Y, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
+                plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
                 plt.ylim(len(Y), 0)
                 plt.pause(1e-6)
         if (i + 1) % 50 == 0:
@@ -368,6 +370,10 @@ if __name__ == '__main__':
         # update distribution
         f += omega * (feQ - f)
 
+    np.save('~/results/hpc/array_X', X)
+    np.save('~/results/hpc/array_Y', Y)
+    np.save('~/results/hpc/array_uScatter', uScatter)
+    
     fig2.show()
 
     calcViscosity = False
