@@ -2,10 +2,12 @@ import numpy as np
 import matplotlib
 import sys
 
-matplotlib.use('TkAgg')
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.cbook
 import warnings
+import datetime as dt
+import os
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
@@ -223,7 +225,7 @@ if __name__ == '__main__':
     applySlidingLid = True
 
     # number of timesteps
-    timesteps = 1000000
+    timesteps = 10
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -370,9 +372,10 @@ if __name__ == '__main__':
         # update distribution
         f += omega * (feQ - f)
 
-    np.save('~/results/hpc/array_X', X)
-    np.save('~/results/hpc/array_Y', Y)
-    np.save('~/results/hpc/array_uScatter', uScatter)
+    date = str(dt.datetime.now())[:10]
+    np.save(os.environ['HOME'] + '/results/hpc/X_' + date, X)
+    np.save(os.environ['HOME'] + '/results/hpc/Y_' + date, Y)
+    np.save(os.environ['HOME'] + '/results/hpc/uScatter_' + date, uScatter)
     
     fig2.show()
 
