@@ -19,10 +19,10 @@ class Flowfield:
         self.c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
 
 
-def shift_f(grid, bounceMask, applyBounce=False, slidingLid=False):
+def shift_f(grid, bounceMask, applyBounce=False):
 
     if applyBounce:
-        saveGrid = np.ma.masked_where(bounceMask != True, grid)
+        saveGrid = np.ma.masked_where(bounceMask is not True, grid)
 
     # center (0,0)
     # stays constant
@@ -59,22 +59,44 @@ def shift_f(grid, bounceMask, applyBounce=False, slidingLid=False):
     grid[:, :, ch] = np.roll(np.roll(grid[:, :, ch], shift=1, axis=0), shift=1, axis=1)
 
     if applyBounce:
+        # treat corners for ch 5, 6, 7, 8 separately
         # check top lid
         if bounceMask[0, 0, 2]:
             # channel 2->4, 5->7, 6->8
             grid[0, :, 4] = saveGrid[0, :, 2]
-            grid[0, :, 7] = saveGrid[0, :, 5]
-            grid[0, :, 8] = saveGrid[0, :, 6]
-        # check bottom lid
+            grid[0, 1:, 7] = saveGrid[0, 1:, 5]
+            grid[0, :-1, 8] = saveGrid[0, :-1, 6]
+        # check bottom
         if bounceMask[-1, 0, 4]:
             # channel 4->2, 7->5, 8->6
             grid[-1, :, 2] = saveGrid[-1, :, 4]
-            grid[-1, :, 5] = saveGrid[-1, :, 7]
-            grid[-1, :, 6] = saveGrid[-1, :, 8]
+            grid[-1, :-1, 5] = saveGrid[-1, :-1, 7]
+            grid[-1, 1:, 6] = saveGrid[-1, 1:, 8]
+        # check left wall
+        if bounceMask[0, 0, 3]:
+            # channel 3->1, 7->5, 6->8,
+            grid[:, 0, 1] = saveGrid[:, 0, 3]
+            grid[1:, 0, 5] = saveGrid[1:, 0, 7]
+            grid[:-1, 0, 8] = saveGrid[:-1, 0, 6]
+        # check right wall
+        if bounceMask[0, -1, 1]:
+            # channel 1->3, 8->6, 5->7
+            grid[:, -1, 3] = saveGrid[:, -1, 1]
+            grid[1:, -1, 6] = saveGrid[1:, -1, 8]
+            grid[:-1, -1, 7] = saveGrid[:-1, -1, 5]
 
+        # handle corners
+        grid[0, [0, -1], 5] = saveGrid[0, [0, -1], 5]
+        grid[-1, [0, -1], 5] = saveGrid[-1, [0, -1], 5]
+        grid[0, [0, -1], 6] = saveGrid[0, [0, -1], 6]
+        grid[-1, [0, -1], 6] = saveGrid[-1, [0, -1], 6]
+        grid[0, [0, -1], 7] = saveGrid[0, [0, -1], 7]
+        grid[-1, [0, -1], 7] = saveGrid[-1, [0, -1], 7]
+        grid[0, [0, -1], 8] = saveGrid[0, [0, -1], 8]
+        grid[-1, [0, -1], 8] = saveGrid[-1, [0, -1], 8]
     return grid
 
-def slidingLid(grid, rho):
+def sliding_lid(grid, rho):
     # according to slide 9 in HPC171129Ueb.pdf
     rhoWall = rho[-1, :].reshape((-1, 1))
     uLid = np.full((grid.shape[0], 1), 0.1)
@@ -183,13 +205,21 @@ if __name__ == '__main__':
     bounceMask[0, :, 2] = True
     bounceMask[0, :, 5] = True
     bounceMask[0, :, 6] = True
-    # bottom lid
+    # bottom
     bounceMask[-1, :, 4] = True
     bounceMask[-1, :, 7] = True
     bounceMask[-1, :, 8] = True
+    # left wall
+    bounceMask[0, :, 3] = True
+    bounceMask[0, :, 6] = True
+    bounceMask[0, :, 7] = True
+    # right wall
+    bounceMask[-1, :, 1] = True
+    bounceMask[-1, :, 5] = True
+    bounceMask[-1, :, 8] = True
 
     applyBounce = True
-    applyslidingLid = True
+    applySlidingLid = True
 
     # number of timesteps
     timesteps = 10000
@@ -323,10 +353,10 @@ if __name__ == '__main__':
         uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
 
         # shift distribution f
-        f = shift_f(f, bounceMask, applyBounce, slidingLid)
+        f = shift_f(f, bounceMask, applyBounce)
         # slide lid
-        if applyslidingLid:
-            f = slidingLid(f, rhoScatter)
+        if applySlidingLid:
+            f = sliding_lid(f, rhoScatter)
         # get partial current density j
         j = calc_j(c, f)
         # get current density rho
