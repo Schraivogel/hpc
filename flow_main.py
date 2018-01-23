@@ -1,9 +1,9 @@
+#!/usr/bin/env python
 import numpy as np
 import matplotlib
 import sys
-
-matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 import matplotlib.cbook
 import warnings
 import datetime as dt
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     applySlidingLid = True
 
     # number of timesteps
-    timesteps = 10
+    timesteps = 1000000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -351,7 +351,7 @@ if __name__ == '__main__':
                 plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
                 plt.ylim(len(Y), 0)
                 plt.pause(1e-6)
-        if (i + 1) % 50 == 0:
+        if (i + 1) % 100 == 0:
             print("\rTime {}/{}".format(i + 1, timesteps), end="")
             sys.stdout.flush()
         uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
@@ -377,7 +377,8 @@ if __name__ == '__main__':
     np.save(os.environ['HOME'] + '/results/hpc/Y_' + date, Y)
     np.save(os.environ['HOME'] + '/results/hpc/uScatter_' + date, uScatter)
     
-    fig2.show()
+    if showPlot:
+    	fig2.show()
 
     calcViscosity = False
 
