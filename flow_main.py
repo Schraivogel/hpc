@@ -213,13 +213,13 @@ if __name__ == '__main__':
     bounceMask[-1, :, 7] = True
     bounceMask[-1, :, 8] = True
     # left wall
-    bounceMask[0, :, 3] = True
-    bounceMask[0, :, 6] = True
-    bounceMask[0, :, 7] = True
+    bounceMask[:, 0, 3] = True
+    bounceMask[:, 0, 6] = True
+    bounceMask[:, 0, 7] = True
     # right wall
-    bounceMask[-1, :, 1] = True
-    bounceMask[-1, :, 5] = True
-    bounceMask[-1, :, 8] = True
+    bounceMask[:, -1, 1] = True
+    bounceMask[:, -1, 5] = True
+    bounceMask[:, -1, 8] = True
 
     applyBounce = True
     applySlidingLid = True
