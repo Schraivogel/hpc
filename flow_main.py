@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 import sys
 import matplotlib.pyplot as plt
+
 plt.switch_backend('Agg')
 import matplotlib.cbook
 import warnings
@@ -22,9 +23,8 @@ class Flowfield:
 
 
 def shift_f(grid, bounceMask, applyBounce=False):
-
     if applyBounce:
-        saveGrid = np.ma.masked_where(bounceMask is not True, grid)
+        saveGrid = np.ma.masked_where(bounceMask is True, grid)
 
     # center (0,0)
     # stays constant
@@ -62,49 +62,58 @@ def shift_f(grid, bounceMask, applyBounce=False):
 
     if applyBounce:
         # treat corners for ch 5, 6, 7, 8 separately
-        # check top lid
-        if bounceMask[0, 0, 2]:
+        if bounceMask[0, 0, 2] and bounceMask[-1, 0, 4]:  # TODO: check every point along line
+            # top lid
             # channel 2->4, 5->7, 6->8
             grid[0, :, 4] = saveGrid[0, :, 2]
             grid[0, 1:, 7] = saveGrid[0, 1:, 5]
             grid[0, :-1, 8] = saveGrid[0, :-1, 6]
-        # check bottom
-        if bounceMask[-1, 0, 4]:
+            # bottom
             # channel 4->2, 7->5, 8->6
             grid[-1, :, 2] = saveGrid[-1, :, 4]
             grid[-1, :-1, 5] = saveGrid[-1, :-1, 7]
             grid[-1, 1:, 6] = saveGrid[-1, 1:, 8]
-        # check left wall
-        if bounceMask[0, 0, 3]:
+
+        if bounceMask[0, 0, 3] and bounceMask[0, -1, 1]:  # TODO: couette flow must still be possible
+            # left wall
             # channel 3->1, 7->5, 6->8,
             grid[:, 0, 1] = saveGrid[:, 0, 3]
             grid[1:, 0, 5] = saveGrid[1:, 0, 7]
             grid[:-1, 0, 8] = saveGrid[:-1, 0, 6]
-        # check right wall
-        if bounceMask[0, -1, 1]:
+            # right wall
             # channel 1->3, 8->6, 5->7
             grid[:, -1, 3] = saveGrid[:, -1, 1]
             grid[1:, -1, 6] = saveGrid[1:, -1, 8]
             grid[:-1, -1, 7] = saveGrid[:-1, -1, 5]
 
-        # handle corners
-        grid[0, [0, -1], 5] = saveGrid[0, [0, -1], 5]
-        grid[-1, [0, -1], 5] = saveGrid[-1, [0, -1], 5]
-        grid[0, [0, -1], 6] = saveGrid[0, [0, -1], 6]
-        grid[-1, [0, -1], 6] = saveGrid[-1, [0, -1], 6]
-        grid[0, [0, -1], 7] = saveGrid[0, [0, -1], 7]
-        grid[-1, [0, -1], 7] = saveGrid[-1, [0, -1], 7]
-        grid[0, [0, -1], 8] = saveGrid[0, [0, -1], 8]
-        grid[-1, [0, -1], 8] = saveGrid[-1, [0, -1], 8]
+            # handle corners
+            grid[0, 0, 5] = saveGrid[0, 0, 5]
+            grid[-1, -1, 5] = saveGrid[-1, -1, 5]
+            grid[0, -1, 6] = saveGrid[0, -1, 6]
+            grid[-1, 0, 6] = saveGrid[-1, 0, 6]
+            grid[0, 0, 7] = saveGrid[0, 0, 7]
+            grid[-1, -1, 7] = saveGrid[-1, -1, 7]
+            grid[0, -1, 8] = saveGrid[0, -1, 8]
+            grid[-1, 0, 8] = saveGrid[-1, 0, 8]
+
     return grid
+
 
 def sliding_lid(grid, rho):
     # according to slide 9 in HPC171129Ueb.pdf
-    rhoWall = rho[-1, :].reshape((-1, 1))
-    uLid = np.full((grid.shape[0], 1), 0.1)
+    # assume ch 2 and 4 are in equilibrium
+    fZero = grid[0, :, 0]
+    f1 = grid[0, :, 1]
+    f2 = grid[0, :, 2]
+    f3 = grid[0, :, 3]
+    f5 = grid[0, :, 5]
+    f6 = grid[0, :, 6]
+    rhoWall = fZero + f1 + f3 + 2 * (f2 + f5 + f6)
+
+    uLid = 0.1
     # substract lid velocity
     ch = 7
-    #grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
+    # grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
     grid[0, :, ch] -= (6 * w[ch] * rhoWall * uLid).flatten()
     # add lid velocity
     ch = 8
@@ -112,6 +121,7 @@ def sliding_lid(grid, rho):
     grid[0, :, ch] += (6 * w[ch] * rhoWall * uLid).flatten()
 
     return grid
+
 
 def f_init(f, w):
     nCh = len(w)
@@ -190,6 +200,7 @@ def init_u(epsilon, rows, cols):  # TODO: make dim variable. current is u_x with
     u[:, :, 0] = epsilon * np.sin(y).reshape(rows, 1)
     return u
 
+
 if __name__ == '__main__':
 
     ####################################################################
@@ -204,22 +215,26 @@ if __name__ == '__main__':
     # bounce back boundary
     bounceMask = np.zeros((nRows, nCols, nCh))
     # set borders to bounce back
+
+    bounceTopBottom = True
     # top lid
-    bounceMask[0, :, 2] = True
-    bounceMask[0, :, 5] = True
-    bounceMask[0, :, 6] = True
+    bounceMask[0, :, 2] = bounceTopBottom
+    bounceMask[0, :, 5] = bounceTopBottom
+    bounceMask[0, :, 6] = bounceTopBottom
     # bottom
-    bounceMask[-1, :, 4] = True
-    bounceMask[-1, :, 7] = True
-    bounceMask[-1, :, 8] = True
+    bounceMask[-1, :, 4] = bounceTopBottom
+    bounceMask[-1, :, 7] = bounceTopBottom
+    bounceMask[-1, :, 8] = bounceTopBottom
+
+    bounceLeftRight = True
     # left wall
-    bounceMask[:, 0, 3] = True
-    bounceMask[:, 0, 6] = True
-    bounceMask[:, 0, 7] = True
+    bounceMask[:, 0, 3] = bounceLeftRight
+    bounceMask[:, 0, 6] = bounceLeftRight
+    bounceMask[:, 0, 7] = bounceLeftRight
     # right wall
-    bounceMask[:, -1, 1] = True
-    bounceMask[:, -1, 5] = True
-    bounceMask[:, -1, 8] = True
+    bounceMask[:, -1, 1] = bounceLeftRight
+    bounceMask[:, -1, 5] = bounceLeftRight
+    bounceMask[:, -1, 8] = bounceLeftRight
 
     applyBounce = True
     applySlidingLid = True
@@ -230,7 +245,8 @@ if __name__ == '__main__':
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
     # weights for initial lattice distribution
-    w = np.array([4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0])
+    w = np.array(
+        [4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0])
     # velocity vector for matrix indices starting top left
     c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
 
@@ -238,7 +254,7 @@ if __name__ == '__main__':
     f = f_init(f, w)
 
     # attenuation factor
-    omega = 1.7
+    omega = 0.7  # TODO: compute reynolds number >! 1000 for turbulent flow
     assert 0 < omega <= 1.7, 'Limits of attenuation factor exceeded'
 
     # initialize shear wave decay factor
@@ -347,8 +363,8 @@ if __name__ == '__main__':
                     plt.close(fig1)
                 # plot velocity streamfield
                 fig2.clf()
-                #plt.quiver(X, Y, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
-                plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
+                # plt.quiver(Y, X, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
+                plt.streamplot(X, Y, uScatter[:, :, 0], uScatter[:, :, 1], color='b')
                 plt.ylim(len(Y), 0)
                 plt.pause(1e-6)
         if (i + 1) % 100 == 0:
@@ -376,11 +392,11 @@ if __name__ == '__main__':
     np.save(os.environ['HOME'] + '/results/hpc/X_' + date, X)
     np.save(os.environ['HOME'] + '/results/hpc/Y_' + date, Y)
     np.save(os.environ['HOME'] + '/results/hpc/uScatter_' + date, uScatter)
-    
-    if showPlot:
-    	fig2.show()
 
-    calcViscosity = False
+    if showPlot:
+        fig2.show()
+
+    calcViscosity = False  # TODO: add viscosiy(nu) = (1/omega - 0.5) / 3 -> results matchs sufficient
 
     if calcViscosity:
         print('Rho after %d timesteps: %s \n' % (timesteps, rhoScatter[0, :]))
@@ -390,7 +406,7 @@ if __name__ == '__main__':
         # get slope of exp. fct via log formula
         Ly = nCols
         k = 2 * np.pi / Ly
-        point = 20
+        point = nRows // 10
         # compute viscosity(nu) the naive way
         nuNoise = (-np.log(uStore[point]) + np.log(uStore[0])) / (k ** 2 * point)
         nuNoiseAll = (-np.log(uStore[t[1::]]) + np.log(uStore[0])) / (k ** 2 * t[1::])
@@ -439,4 +455,3 @@ if __name__ == '__main__':
             ax2.legend(loc='best')
 
             plt.show()  # important to be at the end
-

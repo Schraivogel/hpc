@@ -386,6 +386,8 @@ if __name__ == '__main__':
     # np.save('T:/results/hpc/array_Y', Y)
     # np.save('T:/results/hpc/array_uScatter', uScatter)
 
+    if showPlot:
+        fig2.show()
 
     calcViscosity = False # TODO: add viscosiy(nu) = (1/omega - 0.5) / 3 -> results matchs sufficient
 
@@ -447,5 +449,3 @@ if __name__ == '__main__':
 
             plt.show()  # important to be at the end
 
-    if showPlot:
-        fig2.show()
