@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import numpy as np
 import matplotlib
 import sys
@@ -6,6 +8,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.cbook
 import warnings
+from mpi4py import MPI
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
 
