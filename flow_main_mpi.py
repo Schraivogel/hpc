@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import matplotlib
-import sys
 
-matplotlib.use('TkAgg')
+import sys
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')
 import matplotlib.cbook
 import warnings
 from mpi4py import MPI
+import os
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
-
 
 class Flowfield:
 
@@ -358,15 +357,15 @@ if __name__ == '__main__':
     ####################################################################
 
     # lattice dimensions
-    nRows = 300
-    nCols = 300
+    nRows = 100
+    nCols = 100
     nCh = 9
 
     applyBounce = True
     applySlidingLid = True
 
     # number of timesteps
-    timesteps = 1000
+    timesteps = 5000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -475,7 +474,11 @@ if __name__ == '__main__':
     print('Finished: Rank {}'.format(rank))
     sys.stdout.flush()
 
-    save_mpiio(cartcomm, 'ux.npy', uScatter[1:-1, 1:-1, 0].T)
-    save_mpiio(cartcomm, 'uy.npy', uScatter[1:-1, 1:-1, 1].T)
+    ux_name = os.environ['HOME'] + '/results/hpc/ux_dim_' + str(np.sum(dims))
+    uy_name = os.environ['HOME'] + '/results/hpc/uy_dim_' + str(np.sum(dims))
+
+    # save method expects x as first axis -> [x, y]
+    save_mpiio(cartcomm, ux_name, uScatter[1:-1, 1:-1, 0].T)
+    save_mpiio(cartcomm, uy_name, uScatter[1:-1, 1:-1, 1].T)
 
 
