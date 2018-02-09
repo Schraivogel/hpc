@@ -357,15 +357,15 @@ if __name__ == '__main__':
     ####################################################################
 
     # lattice dimensions
-    nRows = 100
-    nCols = 100
+    nRows = 300
+    nCols = 300
     nCh = 9
 
     applyBounce = True
     applySlidingLid = True
 
     # number of timesteps
-    timesteps = 5000
+    timesteps = 1000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
