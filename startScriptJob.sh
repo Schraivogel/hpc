@@ -1,2 +1,2 @@
-msub -m ae -M stephanschraivogel@gmail.com -l nodes=8:ppn=16,pmem=8000mb,walltime=20:00:00 run_flow.sh
+msub -m ae -M stephanschraivogel@gmail.com -l pmem=16000mb,walltime=05:00:00 -v SCRIPT_FLAGS='-n 12' run_flow.sh
 
