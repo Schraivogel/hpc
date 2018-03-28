@@ -291,10 +291,11 @@ def mpi_communicate(comm, cartcomm, f):
     downSrc, downDst = cartcomm.Shift(1, 1)
 
     # left
-    recvbuf = f[:, -1, :].copy() # TODO: init once
-    comm.Sendrecv(sendbuf=f[:, 1, :].copy(), dest=leftDst,
+    if leftDst >= 0 and leftSrc >= 0:
+        recvbuf = f[:, -1, :].copy() # TODO: init once
+        comm.Sendrecv(sendbuf=f[:, 1, :].copy(), dest=leftDst,
                   recvbuf=recvbuf, source=leftSrc)
-    f[:, -1, :] = recvbuf
+        f[:, -1, :] = recvbuf
 
     # right
     recvbuf = f[:, 0, :].copy()  # TODO: init once
@@ -358,8 +359,8 @@ if __name__ == '__main__':
     ####################################################################
 
     # lattice dimensions
-    nRows = 300
-    nCols = 300
+    nRows = 30
+    nCols = 30
     nCh = 9
 
     applyBounce = True
@@ -450,7 +451,7 @@ if __name__ == '__main__':
 
     # time loop
     for i in range(timesteps):
-
+        print(uScatter[0])
         # mpi communication
         f = mpi_communicate(comm, cartcomm, f)
         if (i + 1) % 50 == 0:
@@ -475,7 +476,7 @@ if __name__ == '__main__':
     print('Finished: Rank {}'.format(rank))
     sys.stdout.flush()
 
-    save_mpiio(cartcomm, 'ux.npy', uScatter[1:-1, 1:-1, 0].T)
-    save_mpiio(cartcomm, 'uy.npy', uScatter[1:-1, 1:-1, 1].T)
+    save_mpiio(cartcomm, 'ux_dim_{}.npy'.format(str(np.sum(dims))), uScatter[1:-1, 1:-1, 0].T)
+    save_mpiio(cartcomm, 'uy_dim_{}.npy'.format(str(np.sum(dims))), uScatter[1:-1, 1:-1, 1].T)
 
 

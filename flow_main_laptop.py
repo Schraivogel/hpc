@@ -129,7 +129,7 @@ def f_init(f, w):
     return f
 
 
-def get_rho(f, checkMax=True):
+def get_rho(f, checkMax=False):
     rho = np.sum(f, axis=2)
     if checkMax:
         pMax = np.ones(rho.shape) + 1e-6
@@ -224,7 +224,7 @@ if __name__ == '__main__':
     bounceMask[-1, :, 7] = bounceTopBottom
     bounceMask[-1, :, 8] = bounceTopBottom
 
-    bounceLeftRight = True
+    bounceLeftRight = False
     # left wall
     bounceMask[:, 0, 3] = bounceLeftRight
     bounceMask[:, 0, 6] = bounceLeftRight
@@ -233,9 +233,6 @@ if __name__ == '__main__':
     bounceMask[:, -1, 1] = bounceLeftRight
     bounceMask[:, -1, 5] = bounceLeftRight
     bounceMask[:, -1, 8] = bounceLeftRight
-
-    applyBounce = True
-    applySlidingLid = True
 
     # number of timesteps
     timesteps = 1000
@@ -323,24 +320,37 @@ if __name__ == '__main__':
     rowPlot = 0
     colPlot = 0
 
+    applyBounce = True
+    applySlidingLid = True
+
     # Plotting
     showPlot = True
-    plotDiscret = 20
+    plotDiscret = 50
+    streamPlot = True
+    plotLineFit = False
+    calcViscosity = False  # TODO: add viscosiy(nu) = (1/omega - 0.5) / 3 -> results matchs sufficient
 
     # Two subplots, the axes array is 1-d
     fig1 = plt.figure(figsize=(10, 9))
     ax1 = fig1.add_subplot(111)  # The big subplot
-    ax11 = fig1.add_subplot(211)
-    ax12 = fig1.add_subplot(212)
+    if plotLineFit:
+        ax11 = fig1.add_subplot(211)
+        ax12 = fig1.add_subplot(212)
     # Turn off axis lines and ticks of the big subplot
-    ax1.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
+    #ax1.tick_params(labelcolor='w', top='off', bottom='off', left='off', right='off')
     # Set labels
-    # ax.set_xlabel('common xlabel')
-    # ax.set_ylabel('common ylabel')
-    ax11.set_title('Column of average velocity u')
-    ax12.set_title('Average velocity u at pi/4')
 
-    fig2 = plt.figure(2)
+    if startWithInitVelocity:
+        ax1.set_title('Average velocity $u_x$')
+        ax1.set_xlabel('$L_y$')
+    elif startWithInitRho:
+        ax1.set_title('Mass density $\\rho_y$')
+        ax1.set_xlabel('$L_x$')
+    ax1.set_ylabel('a.u.')
+    #ax11.set_title('Column of average velocity u')
+    #ax12.set_title('Average velocity u at pi/4')
+
+    if streamPlot: fig2 = plt.figure(2)
 
     # storage of u vector points
     uStore = []
@@ -355,20 +365,23 @@ if __name__ == '__main__':
         if showPlot:
             if i % plotDiscret == 0:
                 if startWithInitVelocity:
-                    ax11.plot(uScatter[:, colPlot, 0], label='t = %s' % i)
+                    ax1.plot(uScatter[:, colPlot, 0], label='t = %s' % i)
+                elif startWithInitRho:
+                    ax1.plot(rhoScatter[0,:], label='t = %s' % i)
                 else:
                     plt.close(fig1)
                 # plot velocity streamfield
-                fig2.clf()
-                #plt.quiver(Y, X, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
-                plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
-                plt.ylim(len(Y), 0)
-                plt.pause(1e-6)
+                if streamPlot:
+                    fig2.clf()
+                    plt.quiver(Y, X, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
+                    #plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
+                    plt.ylim(len(Y), 0)
+                    plt.pause(1e-6)
         if (i + 1) % 50 == 0:
             print("\rTime {}/{}".format(i + 1, timesteps), end="")
             sys.stdout.flush()
         uStore = np.append(uStore, uScatter[nRows // 4, colPlot, 0])
-        print(rhoScatter)
+        #print(rhoScatter)
         # shift distribution f
         f = shift_f(f, bounceMask, applyBounce)
         # slide lid
@@ -389,10 +402,20 @@ if __name__ == '__main__':
     # np.save('T:/results/hpc/array_Y', Y)
     # np.save('T:/results/hpc/array_uScatter', uScatter)
 
-    if showPlot:
-        fig2.show()
 
-    calcViscosity = False # TODO: add viscosiy(nu) = (1/omega - 0.5) / 3 -> results matchs sufficient
+
+
+    if not calcViscosity and showPlot:
+        for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
+                     ax1.get_xticklabels() + ax1.get_yticklabels()):
+            item.set_fontsize(12)
+        # Legend
+        # Shrink current axis by 20%
+        box = ax1.get_position()
+        ax1.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Put a legend to the right of the current axis
+        ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize=12)
+        plt.show()
 
     if calcViscosity:
         print('Rho after %d timesteps: %s \n' % (timesteps, rhoScatter[0, :]))
@@ -402,7 +425,7 @@ if __name__ == '__main__':
         # get slope of exp. fct via log formula
         Ly = nCols
         k = 2 * np.pi / Ly
-        point = nRows // 10
+        point = nRows // 5
         # compute viscosity(nu) the naive way
         nuNoise = (-np.log(uStore[point]) + np.log(uStore[0])) / (k ** 2 * point)
         nuNoiseAll = (-np.log(uStore[t[1::]]) + np.log(uStore[0])) / (k ** 2 * t[1::])
@@ -429,26 +452,27 @@ if __name__ == '__main__':
         print('Exact computation of nu = %.3f \n' % nuExact)
 
         if showPlot:  # figure blocks -> must be at the end of the code!
-            # plot log of u values
-            ax12.plot(lnU, label='log(u)')
-            # plot linear fit
-            ax12.plot(line, 'r--', label='fit of log(u)')
+            if plotLineFit:
+                # plot log of u values
+                ax12.plot(lnU, label='log(u)')
+                # plot linear fit
+                ax12.plot(line, 'r--', label='fit of log(u)')
             # plot exp fit
             # ax2.plot(eFct, 'g--', label='fit of $e^\lambda*t$')
-            # Legend
-            # Shrink current axis by 20%
-            box = ax1.get_position()
-            ax1.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-            # Put a legend to the right of the current axis
-            ax11.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            ax12.legend(loc='best')
+
+            if plotLineFit: ax12.legend(loc='best')
             # plot u & exponential fit
             fig2, ax2 = plt.subplots(1, 1)
-            ax2.set_title('Average velocity u')
-            ax2.plot(t, uStore, label='u')
-            ax2.plot(t, eFctFit, 'g--', label='$y = A*e^{\lambda*x}$')
+            ax2.set_title('Average velocity $u_{\mathbf{x}_0}^{max}$')
+            ax2.plot(t, uStore, 'k-', label='u', linewidth=1.5)
+            ax2.plot(t, eFctFit, '--', color=(0.6,0.1,0.05), label='$y = A*e^{\lambda*x}$', linewidth=1.0)
             ax2.plot(t, eFctNaive, 'k--', label='$u_0*e^{-\\nu*k^2*t}$', linewidth=0.6)
-            ax2.legend(loc='best')
+            ax2.legend(loc='best', fontsize=12)
+            ax2.set_xlabel('t')
+            ax2.set_ylabel('a.u.')
+            for item in ([ax2.title, ax2.xaxis.label, ax2.yaxis.label] +
+                         ax2.get_xticklabels() + ax2.get_yticklabels()):
+                item.set_fontsize(12)
 
             plt.show()  # important to be at the end
-
+    plt.show()
