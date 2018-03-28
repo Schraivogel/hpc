@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-savePlot = False
+savePlot = True
 
 ux = np.load('ux_npy').T
 uy = np.load('uy_npy').T
@@ -16,6 +16,8 @@ print(uy)
 plt.figure()
 plt.streamplot(X, Y, ux, uy, color='b')
 plt.ylim(len(Y), 0)
+plt.xlabel('Lattice size [nx]')
+plt.ylabel('Lattice size [ny]')
 if savePlot == True:
-    plt.savefig("Vortex_Streamplot_" + str(x) + "_" + str(y) + "_" + str(1) + ".pdf")
+    plt.savefig("Report/Vortex_Streamplot_Parallel" + str(200) + "_" + str(200) + "_" + str(10000) + "omega=0.3_4cores.pdf")
 plt.show()

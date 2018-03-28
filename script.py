@@ -227,10 +227,10 @@ def save_mpiio(comm, fn, g_kl):
 
 
 ##########################################################
-rows = 300
-cols = 300
+rows = 200
+cols = 200
 q = 9
-timesteps = 100000
+timesteps = 10000
 
 
 ##############################
@@ -301,7 +301,7 @@ mask = mask_vortex(latt)
 rho = np.ones((latt.shape[0], latt.shape[1]))
 u = np.zeros((latt.shape[0], latt.shape[1], 2))
 latt = calc_equilibrium(rho, u, c, w)
-omega = 0.5
+omega = 0.3
 
 ##########################################
 
