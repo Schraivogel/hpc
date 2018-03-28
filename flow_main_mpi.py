@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
+import argparse
 import numpy as np
-
 import sys
 import matplotlib.pyplot as plt
+
 plt.switch_backend('Agg')
 import matplotlib.cbook
 import warnings
@@ -11,6 +12,14 @@ from mpi4py import MPI
 import os
 
 warnings.filterwarnings("ignore", category=matplotlib.cbook.mplDeprecation)
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-timesteps', type=int, default=1000, help='Number of timesteps')
+parser.add_argument('-grid_size', type=int, default=576, help='Size of lattice(grid_size x grid_size)')
+parser.add_argument('-num_procs', type=int, default=4, help='Number of processes')
+parser.add_argument('-vel_lid', type=float, default=0.1, help='Sliding lid velocity')
+a = parser.parse_args()
+
 
 class Flowfield:
 
@@ -95,7 +104,6 @@ def shift_f(grid, bounceMask, borders, applyBounce=False):
             grid[r, 1:, 7] = saveGrid[r, 1:, 5]
             grid[r, :-1, 8] = saveGrid[r, :-1, 6]
 
-
         # handle corners
         grid[1, 1, 5] = saveGrid[1, 1, 5]
         grid[-2, -2, 5] = saveGrid[-2, -2, 5]
@@ -110,6 +118,7 @@ def shift_f(grid, bounceMask, borders, applyBounce=False):
         grid[-2, 1, 8] = saveGrid[-2, 1, 8]
 
     return grid
+
 
 def sliding_lid(grid, rho, borders):
     # according to slide 9 in HPC171129Ueb.pdf
@@ -127,15 +136,14 @@ def sliding_lid(grid, rho, borders):
         f6 = grid[r, :, 6]
         rhoWall = fZero + f1 + f3 + 2 * (f2 + f5 + f6)
 
-        uLid = 0.1
         # substract lid velocity
         ch = 7
-        #grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
-        grid[r, :, ch] -= (6 * w[ch] * rhoWall * uLid).flatten()
+        # grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
+        grid[r, :, ch] -= (6 * w[ch] * rhoWall * a.vel_lid).flatten()
         # add lid velocity
         ch = 8
         # grid[-1, :, ch] += (6 * w[ch] * rhoWall * c[ch, 0] * uLid).flatten()
-        grid[r, :, ch] += (6 * w[ch] * rhoWall * uLid).flatten()
+        grid[r, :, ch] += (6 * w[ch] * rhoWall * a.vel_lid).flatten()
 
     return grid
 
@@ -157,8 +165,10 @@ def get_rho(f, checkMax=False):
             with warnings.catch_warnings():
                 warnings.simplefilter("once")
                 warnings.warn("Rho bigger than one")
-    assert (rho.flatten() < 0).any() == False, 'Negative occupation / rho.'
-    return rho
+    if (rho.flatten() < 0).any():
+        warnings.warn('Negative occupation / rho. Save u and terminate program...')
+        return rho, 1
+    return rho, 0
 
 
 def calc_j(c, f):
@@ -171,7 +181,7 @@ def calc_avg_vel(rho, j):
     return u
 
 
-def calc_equilibrium(rho, u, c, w):  # TODO: Use Einsum
+def calc_equilibrium(rho, u, c, w):
     nRows = rho.shape[0]
     nCols = rho.shape[1]
     nCh = len(w)
@@ -247,16 +257,16 @@ def save_mpiio(comm, fn, g_kl):
     commx.Allreduce(np.asarray(local_nx), nx)
     commy.Allreduce(np.asarray(local_ny), ny)
 
-    arr_dict_str = str({ 'descr': dtype_to_descr(g_kl.dtype),
-                         'fortran_order': False,
-                         'shape': (np.asscalar(nx), np.asscalar(ny)) })
+    arr_dict_str = str({'descr': dtype_to_descr(g_kl.dtype),
+                        'fortran_order': False,
+                        'shape': (np.asscalar(nx), np.asscalar(ny))})
     while (len(arr_dict_str) + len(magic_str) + 2) % 16 != 15:
         arr_dict_str += ' '
     arr_dict_str += '\n'
     header_len = len(arr_dict_str) + len(magic_str) + 2
 
     offsetx = np.zeros_like(local_nx)
-    commx.Exscan(np.asarray(ny*local_nx), offsetx)
+    commx.Exscan(np.asarray(ny * local_nx), offsetx)
     offsety = np.zeros_like(local_ny)
     commy.Exscan(np.asarray(local_ny), offsety)
 
@@ -268,17 +278,18 @@ def save_mpiio(comm, fn, g_kl):
     mpitype = MPI._typedict[g_kl.dtype.char]
     filetype = mpitype.Create_vector(g_kl.shape[0], g_kl.shape[1], ny)
     filetype.Commit()
-    file.Set_view(header_len + (offsety+offsetx)*mpitype.Get_size(),
+    file.Set_view(header_len + (offsety + offsetx) * mpitype.Get_size(),
                   filetype=filetype)
     file.Write_all(g_kl.copy())
     filetype.Free()
     file.Close()
 
+
 #  Note that these matrices need to be two-dimensional, i.e. you will need to write the individual cartesian
 #  components of a velocity vector to separate files. To write the velocities from your code, just execute:
 
-#save_mpiio(comm, 'ux.npy', velocities[0])
-#save_mpiio(comm, 'uy.npy', velocities[1])
+# save_mpiio(comm, 'ux.npy', velocities[0])
+# save_mpiio(comm, 'uy.npy', velocities[1])
 
 
 def mpi_communicate(comm, cartcomm, f):
@@ -290,7 +301,7 @@ def mpi_communicate(comm, cartcomm, f):
     downSrc, downDst = cartcomm.Shift(1, 1)
 
     # left
-    recvbuf = f[:, -1, :].copy() # TODO: init once
+    recvbuf = f[:, -1, :].copy()  # TODO: init once
     comm.Sendrecv(sendbuf=f[:, 1, :].copy(), dest=leftDst,
                   recvbuf=recvbuf, source=leftSrc)
     f[:, -1, :] = recvbuf
@@ -328,6 +339,7 @@ def mpi_communicate(comm, cartcomm, f):
 
     return f
 
+
 def get_borders(rank, cartcomm):
     # check if on edge of full lattice
 
@@ -338,39 +350,43 @@ def get_borders(rank, cartcomm):
 
     # left, right, down, up edge
     borders = np.zeros((4, 1), dtype=bool)
-    if leftDst == -1:
+    if leftDst < 0:
         borders[0] = True
-    if rightDst == -1:
+    if rightDst < 0:
         borders[1] = True
-    if downDst == -1:
+    if downDst < 0:
         borders[2] = True
-    if upDst == -1:
+    if upDst < 0:
         borders[3] = True
 
     return borders
 
 
+def save_u(u_scatter, cartcomm, size):
+    ux_name = os.environ['HOME'] + '/results/hpc/ux_np_' + str(size) + '_ts_' + str(a.timesteps) + '.npy'
+    uy_name = os.environ['HOME'] + '/results/hpc/uy_np_' + str(size) + '_ts_' + str(a.timesteps) + '.npy'
+
+    # save method expects x as first axis -> [x, y]
+    save_mpiio(cartcomm, ux_name, u_scatter[1:-1, 1:-1, 0].T)
+    save_mpiio(cartcomm, uy_name, u_scatter[1:-1, 1:-1, 1].T)
+    print('Saved results')
+
+
 if __name__ == '__main__':
 
     ####################################################################
-    ######################## Initialization ############################
+    ######################## Lattice init ##############################
     ####################################################################
 
-    # lattice dimensions
-    nRows = 300
-    nCols = 300
-    nCh = 9
-
+    num_ch = 9
     applyBounce = True
     applySlidingLid = True
 
-    # number of timesteps
-    timesteps = 1000
-
     # lattice
-    f = np.zeros((nRows, nCols, nCh), dtype=float)
+    f = np.zeros((a.grid_size, a.grid_size, num_ch), dtype=float)
     # weights for initial lattice distribution
-    w = np.array([4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0])
+    w = np.array(
+        [4.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 9.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0, 1.0 / 36.0])
     # velocity vector for matrix indices starting top left as [x, y]
     c = np.array([[0, 0], [1, 0], [0, -1], [-1, 0], [0, 1], [1, -1], [-1, -1], [-1, 1], [1, 1]])
 
@@ -378,8 +394,12 @@ if __name__ == '__main__':
     f = f_init(f, w)
 
     # attenuation factor
-    omega = 0.7 # TODO: compute reynolds number >! 1000 for turbulent flow
+    omega = 0.4
     assert 0 < omega <= 1.7, 'Limits of attenuation factor exceeded'
+
+    kin_visco = 1/3 * (1/omega - 1/2)
+    reynolds = (a.grid_size * a.vel_lid) / kin_visco
+    if reynolds <= 1000: warnings.warn('Reynolds number must be bigger than 1000. No turbulent flow possible')
 
     # initialize shear wave decay factor
     epsilon = 0.01
@@ -395,17 +415,21 @@ if __name__ == '__main__':
     print('rank = {}/{}'.format(rank, size))
 
     # periodic communication disabled
-    dims = (2, 2)
+    factor = np.sqrt(size)
+    assert (factor * factor) == size, 'Square root of number of processes must be an integer'
+    factor = int(factor)
+    dims = (factor, factor)
+
     cartcomm = comm.Create_cart(dims, periods=(False, False), reorder=(False, False))
 
     # get edges according to cartesian cart position
     borders = get_borders(rank, cartcomm)
     # add ghost cells
-    localRows = nRows // dims[0] + 2
-    localCols = nCols // dims[1] + 2
+    localRows = a.grid_size // dims[0] + 2
+    localCols = a.grid_size // dims[1] + 2
 
     # bounce back boundary
-    bounceMask = np.zeros((localRows, localCols, nCh))
+    bounceMask = np.zeros((localRows, localCols, num_ch))
     # set borders to bounce back
 
     bounceTopBottom = True
@@ -448,12 +472,11 @@ if __name__ == '__main__':
     uScatter = uTZero.copy()
 
     # time loop
-    for i in range(timesteps):
-
+    for i in range(a.timesteps):
         # mpi communication
         f = mpi_communicate(comm, cartcomm, f)
-        if (i + 1) % 50 == 0:
-            print("\rTime {}/{}".format(i + 1, timesteps), end="")
+        if (i + 1) % 1000 == 0:
+            print("\rTime {}/{}".format(i + 1, a.timesteps), end="")
             sys.stdout.flush()
         # shift distribution f
         f = shift_f(f, bounceMask, borders, applyBounce)
@@ -463,7 +486,10 @@ if __name__ == '__main__':
         # get partial current density j
         j = calc_j(c, f)
         # get current density rho
-        rhoScatter = get_rho(f)
+        rhoScatter, rho_exit = get_rho(f)
+        if rho_exit:
+            save_u(uScatter, cartcomm, size)
+            raise ValueError('Negative rho')
         # get average velocity
         uScatter = calc_avg_vel(rhoScatter, j)
         # get local equilibrium distributions
@@ -471,14 +497,8 @@ if __name__ == '__main__':
         # update distribution
         f += omega * (feQ - f)
 
+    save_u(uScatter, cartcomm, size)
     print('Finished: Rank {}'.format(rank))
     sys.stdout.flush()
-
-    ux_name = os.environ['HOME'] + '/results/hpc/ux_dim_' + str(np.sum(dims))
-    uy_name = os.environ['HOME'] + '/results/hpc/uy_dim_' + str(np.sum(dims))
-
-    # save method expects x as first axis -> [x, y]
-    save_mpiio(cartcomm, ux_name, uScatter[1:-1, 1:-1, 0].T)
-    save_mpiio(cartcomm, uy_name, uScatter[1:-1, 1:-1, 1].T)
 
 
