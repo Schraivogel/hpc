@@ -1,5 +1,5 @@
 #!/bin/bash -x
-#MSUB -l nodes=1:ppn=4,pmem=16000mb
+#MSUB -l nodes=1:ppn=4,pmem=6000mb
 #MSUB -l walltime=10:00:00
 #MSUB -N HPC_WITH_PYTHON
 #MSUB -m abe

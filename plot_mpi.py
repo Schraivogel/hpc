@@ -28,7 +28,15 @@ X, Y = np.meshgrid(x, y)
 if __name__ == '__main__':
     print('Plot u*' + postfix)
     plt.close()
-    plt.streamplot(X, Y, ux, uy, color='b')
-    plt.ylim(len(Y), 0)
+    fig, ax = plt.subplots()
+    ax.streamplot(X, Y, ux, uy, color='b')
+    ax.set_ylim([len(Y), 0])
+    ax.set_title('Average velocity $\mathbf{u}(\mathbf{r})$')
+    ax.set_xlabel('$L_x$')
+    ax.set_ylabel('$L_y$')
+    for item in ([ax.title, ax.xaxis.label, ax.yaxis.label] +
+                 ax.get_xticklabels() + ax.get_yticklabels()):
+        item.set_fontsize(12)
+
     if a.save: plt.savefig('mpi_u' + postfix[:-4] + '.pdf')
     plt.show()

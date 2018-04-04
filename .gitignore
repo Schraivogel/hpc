@@ -1,5 +1,6 @@
 # other
 HPC_WITH_*
+.idea/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

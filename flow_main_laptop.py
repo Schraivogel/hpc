@@ -235,7 +235,7 @@ if __name__ == '__main__':
     bounceMask[:, -1, 8] = bounceLeftRight
 
     # number of timesteps
-    timesteps = 1000
+    timesteps = 10000
 
     # lattice
     f = np.zeros((nRows, nCols, nCh), dtype=float)
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     f = f_init(f, w)
 
     # attenuation factor
-    omega = 0.7 # TODO: compute reynolds number >! 1000 for turbulent flow
+    omega = 0.1 # TODO: compute reynolds number >! 1000 for turbulent flow
     assert 0 < omega <= 1.7, 'Limits of attenuation factor exceeded'
 
     # initialize shear wave decay factor
@@ -326,9 +326,10 @@ if __name__ == '__main__':
     # Plotting
     showPlot = True
     plotDiscret = 50
-    streamPlot = True
+    streamPlot = False
     plotLineFit = False
     calcViscosity = False  # TODO: add viscosiy(nu) = (1/omega - 0.5) / 3 -> results matchs sufficient
+    couettePlot = False
 
     # Two subplots, the axes array is 1-d
     fig1 = plt.figure(figsize=(10, 9))
@@ -350,8 +351,6 @@ if __name__ == '__main__':
     #ax11.set_title('Column of average velocity u')
     #ax12.set_title('Average velocity u at pi/4')
 
-    if streamPlot: fig2 = plt.figure(2)
-
     # storage of u vector points
     uStore = []
     # for streamplot
@@ -372,7 +371,7 @@ if __name__ == '__main__':
                     plt.close(fig1)
                 # plot velocity streamfield
                 if streamPlot:
-                    fig2.clf()
+                    fig2 = plt.figure(2)
                     plt.quiver(Y, X, uScatter[:,:,0].T, uScatter[:,:,1].T, color='b')
                     #plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
                     plt.ylim(len(Y), 0)
@@ -402,10 +401,20 @@ if __name__ == '__main__':
     # np.save('T:/results/hpc/array_Y', Y)
     # np.save('T:/results/hpc/array_uScatter', uScatter)
 
+    if couettePlot:
+        fig3 = plt.figure(figsize=(10, 9))
+        ax3 = fig3.add_subplot(111)
+        plt.quiver(Y, X, uScatter[:, :, 0].T, uScatter[:, :, 1].T, color='b')
+        # plt.streamplot(X, Y, uScatter[:,:,0], uScatter[:,:,1], color='b')
+        plt.ylim(len(Y), 0)
+        ax3.set_title('Average velocity $\mathbf{u}(\mathbf{r})$')
+        ax3.set_xlabel('$L_x$')
+        ax3.set_ylabel('$L_y$')
+        for item in ([ax3.title, ax3.xaxis.label, ax3.yaxis.label] +
+                     ax3.get_xticklabels() + ax3.get_yticklabels()):
+            item.set_fontsize(12)
 
-
-
-    if not calcViscosity and showPlot:
+    if not calcViscosity and not startWithSlidingLid and showPlot:
         for item in ([ax1.title, ax1.xaxis.label, ax1.yaxis.label] +
                      ax1.get_xticklabels() + ax1.get_yticklabels()):
             item.set_fontsize(12)
